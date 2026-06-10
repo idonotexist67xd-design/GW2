@@ -35,19 +35,23 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-var fetch_1 = require("@libs/fetch");
-var cheerio_1 = require("cheerio");
-var defaultCover_1 = require("@libs/defaultCover");
+
+// Se eliminan los require() rotos y se asignan las variables globales de la app
+var clientFetchText = typeof fetchText !== "undefined" ? fetchText : function(url) {
+    return fetch(url).then(function(res) { return res.text(); });
+};
+var clientCheerio = typeof cheerio !== "undefined" ? cheerio : { load: function() { return function() { return []; }; } };
+var clientDefaultCover = "";
+
 var GiantessWorldPlugin = /** @class */ (function () {
     function GiantessWorldPlugin() {
         this.id = 'giantessworld';
         this.name = 'GiantessWorld';
         this.site = 'https://giantessworld.net';
         this.version = '2.0.0';
-        this.icon = 'https://giantessworld.net/favicon.ico';
+        this.icon = 'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/book/default/48px.svg';
     }
-    // 🔥 POPULAR (usa recent como base estable)
+    
     GiantessWorldPlugin.prototype.popularNovels = function (pageNo) {
         return __awaiter(this, void 0, void 0, function () {
             var url, html, $, novels;
@@ -55,10 +59,10 @@ var GiantessWorldPlugin = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         url = "".concat(this.site, "/browse.php?type=recent&page=").concat(pageNo);
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
+                        return [4 /*yield*/, clientFetchText(url)];
                     case 1:
                         html = _a.sent();
-                        $ = (0, cheerio_1.load)(html);
+                        $ = clientCheerio.load(html);
                         novels = [];
                         $('a[href*="viewstory.php?sid="]').each(function (_, el) {
                             var href = $(el).attr('href');
@@ -71,7 +75,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
                             novels.push({
                                 name: title,
                                 path: "/viewstory.php?sid=".concat(match[1]),
-                                cover: defaultCover_1.defaultCover,
+                                cover: clientDefaultCover,
                             });
                         });
                         return [2 /*return*/, novels];
@@ -79,7 +83,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
             });
         });
     };
-    // 📖 NOVELA + CAPÍTULOS (robusto)
+    
     GiantessWorldPlugin.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
             var url, html, $, name, novel;
@@ -87,20 +91,19 @@ var GiantessWorldPlugin = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         url = this.site + novelPath;
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
+                        return [4 /*yield*/, clientFetchText(url)];
                     case 1:
                         html = _a.sent();
-                        $ = (0, cheerio_1.load)(html);
+                        $ = clientCheerio.load(html);
                         name = $('#pagetitle a').first().text().trim() ||
                             $('title').text().split('by')[0].trim() ||
                             'Unknown Title';
                         novel = {
                             path: novelPath,
                             name: name,
-                            cover: defaultCover_1.defaultCover,
+                            cover: clientDefaultCover,
                             chapters: [],
                         };
-                        // 🔥 capítulos (selector real del site)
                         $('select[name="chapter"] option').each(function (_, el) {
                             var value = $(el).attr('value');
                             var text = $(el).text().trim();
@@ -114,7 +117,6 @@ var GiantessWorldPlugin = /** @class */ (function () {
                                 releaseTime: '',
                             });
                         });
-                        // fallback si no detecta select
                         if (novel.chapters.length === 0) {
                             novel.chapters.push({
                                 name: 'Chapter 1',
@@ -128,7 +130,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
             });
         });
     };
-    // 📄 CAPÍTULO (limpio + seguro)
+    
     GiantessWorldPlugin.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
             var url, html, $, story;
@@ -136,11 +138,10 @@ var GiantessWorldPlugin = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         url = this.site + chapterPath;
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
+                        return [4 /*yield*/, clientFetchText(url)];
                     case 1:
                         html = _a.sent();
-                        $ = (0, cheerio_1.load)(html);
-                        // eliminar basura
+                        $ = clientCheerio.load(html);
                         $('#menu, script, style, .footer').remove();
                         story = $('#story').html() || '';
                         return [2 /*return*/, story.trim()];
@@ -148,7 +149,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
             });
         });
     };
-    // 🔍 SEARCH (más fiable que homepage scraping)
+    
     GiantessWorldPlugin.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
             var url, html, $, novels;
@@ -156,10 +157,10 @@ var GiantessWorldPlugin = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         url = "".concat(this.site, "/search.php?search=").concat(encodeURIComponent(searchTerm), "&page=").concat(pageNo);
-                        return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
+                        return [4 /*yield*/, clientFetchText(url)];
                     case 1:
                         html = _a.sent();
-                        $ = (0, cheerio_1.load)(html);
+                        $ = clientCheerio.load(html);
                         novels = [];
                         $('a[href*="viewstory.php?sid="]').each(function (_, el) {
                             var href = $(el).attr('href');
@@ -172,7 +173,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
                             novels.push({
                                 name: title,
                                 path: "/viewstory.php?sid=".concat(match[1]),
-                                cover: defaultCover_1.defaultCover,
+                                cover: clientDefaultCover,
                             });
                         });
                         return [2 /*return*/, novels];
@@ -180,9 +181,17 @@ var GiantessWorldPlugin = /** @class */ (function () {
             });
         });
     };
+    
     GiantessWorldPlugin.prototype.resolveUrl = function (path) {
         return this.site + path;
     };
     return GiantessWorldPlugin;
 }());
-exports.default = new GiantessWorldPlugin();
+
+// Compatibilidad con exportaciones CommonJS y ES Modules nativas
+if (typeof exports !== "undefined") {
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = new GiantessWorldPlugin();
+} else {
+    window.giantessworld = new GiantessWorldPlugin();
+}
