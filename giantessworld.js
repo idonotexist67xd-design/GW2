@@ -113,42 +113,51 @@ class GiantessWorldPlugin {
         return novel;
     }
 
-    async parseChapter(chapterPath) {
+      async parseChapter(chapterPath) {
         let url = this.resolveUrl(chapterPath);
-        // Intentar vista imprimible (más limpia)
+        
+        // Forzar vista imprimible (la más limpia)
         if (!url.includes('action=printable')) {
-            url = url.replace('viewstory.php', 'viewstory.php?action=printable');
+            url = url.replace(/viewstory\.php/, 'viewstory.php?action=printable');
         }
 
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
+        // Selectores fuertes para printable view
         let storyContainer = 
             $('#story') ||
-            $('.content') ||
-            $('td[align="left"][valign="top"]') ||
-            $('td[valign="top"]').has('br').first() ||
+            $('div[style*="margin"]') ||
+            $('td[valign="top"]').first() ||
             $('body');
 
-        storyContainer.find('script, style, header, nav, footer, form, select, input, .ad, #menu').remove();
+        // Eliminar basura
+        storyContainer.find('script, style, header, nav, footer, form, select, input, .ad, #menu, a[href*="report"], a[href*="review"]').remove();
 
         let text = storyContainer.html() || storyContainer.text() || '';
 
+        // Limpieza agresiva
         text = text
-            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help|Penname:|Password:|Remember Me|Disclaimer:/gi, '')
+            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help|Penname:|Password:|Remember Me|Disclaimer:|Vote on|Categories:|Characters:|Warnings:|Challenges:|Series:/gi, '')
             .replace(/<script.*?<\/script>/gis, '')
             .replace(/<style.*?<\/style>/gis, '')
             .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
             .replace(/<br\s*\/?>/gi, '\n\n')
-            .replace(/<\/?(p|div|h[1-6]|li|ul|ol)[^>]*>/gi, '\n\n')
+            .replace(/<\/?(p|div|h[1-6]|li|ul|ol|table|tr|td)[^>]*>/gi, '\n\n')
             .replace(/\n\s*\n\s*\n/g, '\n\n')
             .trim();
 
-        return text.length > 200 ? text : 'No se pudo cargar el texto correctamente. Prueba WebView.';
+        if (text.length > 300) {
+            return text;
+        }
+
+        // Último fallback
+        return 'No se pudo extraer el texto correctamente.\n\nPrueba abrir el capítulo con el botón de WebView (icono de ojo).';
     }
 
-    async searchNovels(searchTerm, pageNo = 1) {
-        const url = `${this.site}/search.php?search=${encodeURIComponent(searchTerm)}`;
+   async searchNovels(searchTerm, pageNo = 1) {
+        // GiantessWorld usa browse.php con parámetros para búsqueda
+        const url = `${this.site}/browse.php?type=titles&searchterm=${encodeURIComponent(searchTerm)}&page=${pageNo}`;
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
         return this.extractNovels($);
