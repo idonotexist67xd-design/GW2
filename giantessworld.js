@@ -27,7 +27,7 @@ class GiantessWorldPlugin {
             if (!href || !name) return;
             if (name.toLowerCase().includes('reviews') || name.toLowerCase().includes('table of contents')) return;
 
-            let cleanPath = href.replace(/https?:\/\/giantessworld\.net\/?/, '');
+            let cleanPath = href.replace(/https?:\/\/giantessworld\.net/, '').replace(/^\/+/, '');
             if (cleanPath.includes('&')) cleanPath = cleanPath.split('&')[0];
 
             if (seen.has(cleanPath)) return;
@@ -58,19 +58,9 @@ class GiantessWorldPlugin {
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
-        // Mejores selectores para el título
-        const title = 
-            $('h1').first().text().trim() ||
-            $('.story-title a').first().text().trim() ||
-            $('#pagetitle a').first().text().trim() ||
-            $('strong').first().text().trim() ||
-            'Sin título';
-
+        const title = $('h1').first().text().trim() || $('.story-title a').first().text().trim() || 'Sin título';
         const author = $('a[href*="viewuser.php"]').first().text().trim() || 'Desconocido';
-
-        const summary = 
-            $('td:contains("Summary"), td:contains("Description"), .content, .summary').first().text().trim() ||
-            'Sin resumen disponible.';
+        const summary = $('td:contains("Summary"), .content, .summary').first().text().trim() || 'Sin resumen';
 
         const novel = {
             path: novelPath,
@@ -81,21 +71,21 @@ class GiantessWorldPlugin {
             chapters: []
         };
 
-        // Extracción de capítulos (mejorada)
+        // Mejor extracción de capítulos (TOC)
         $('a[href*="viewchapter.php"], a[href*="viewstory.php?sid="][href*="chapter="]').each((_, el) => {
             const name = $(el).text().trim();
             const href = $(el).attr('href') || '';
             if (name && href && !name.toLowerCase().includes('table of contents')) {
                 novel.chapters.push({
                     name: name,
-                    path: href.replace(/https?:\/\/giantessworld\.net\/?/, ''),
+                    path: href.replace(/https?:\/\/giantessworld\.net/, ''),
                     chapterNumber: novel.chapters.length + 1,
                     releaseTime: ''
                 });
             }
         });
 
-        // Fallback con select
+        // Fallback con select si existe
         if (novel.chapters.length === 0) {
             $('select[name="chapter"] option').each((_, el) => {
                 const value = $(el).attr('value');
@@ -113,7 +103,7 @@ class GiantessWorldPlugin {
         return novel;
     }
 
-         async parseChapter(chapterPath) {
+       async parseChapter(chapterPath) {
         const url = this.resolveUrl(chapterPath);
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
@@ -158,10 +148,9 @@ class GiantessWorldPlugin {
 
         return text;
     }
-
-   async searchNovels(searchTerm, pageNo = 1) {
-        // GiantessWorld usa browse.php con parámetros para búsqueda
-        const url = `${this.site}/browse.php?type=titles&searchterm=${encodeURIComponent(searchTerm)}&page=${pageNo}`;
+    
+    async searchNovels(searchTerm, pageNo = 1) {
+        const url = `${this.site}/search.php?search=${encodeURIComponent(searchTerm)}`;
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
         return this.extractNovels($);
