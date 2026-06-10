@@ -103,43 +103,52 @@ class GiantessWorldPlugin {
         return novel;
     }
 
-    async parseChapter(chapterPath) {
+        async parseChapter(chapterPath) {
         const url = this.resolveUrl(chapterPath);
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
-        // Selectores mejorados para el texto del capítulo
-        let content = '';
-        const selectors = [
-            '#story', 
-            '.content', 
-            'td[align="left"]', 
-            'td[valign="top"]',
-            '.chapter-content',
-            'body'
-        ];
+        // Selectores más precisos para GiantessWorld
+        let storyContainer = 
+            $('#story') ||
+            $('.listbox .content') ||
+            $('td[align="left"][valign="top"]') ||
+            $('td[valign="top"]').has('br').first() ||
+            $('div').filter((i, el) => {
+                return $(el).text().length > 300 && 
+                       $(el).find('br').length > 3;
+            }).first();
 
-        for (const sel of selectors) {
-            const el = $(sel);
-            if (el.length && el.text().trim().length > 100) {
-                content = el.html() || el.text();
-                break;
-            }
+        if (!storyContainer || !storyContainer.length) {
+            // Último intento amplio pero inteligente
+            storyContainer = $('body').clone();
+            // Eliminar elementos no deseados
+            storyContainer.find('header, nav, footer, .menu, #menu, form, select, input, script, style, iframe, .ad, .sidebar').remove();
         }
 
-        // Limpieza fuerte
-        content = content
+        // Limpieza muy fuerte
+        storyContainer.find('script, style, iframe, noscript, select, form, .label, #ad, header, nav, footer').remove();
+
+        let text = storyContainer.html() || storyContainer.text() || '';
+
+        text = text
+            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help/gi, '')
+            .replace(/Penname:|Password:|Remember Me|Disclaimer:/gi, '')
             .replace(/<script.*?<\/script>/gis, '')
             .replace(/<style.*?<\/style>/gis, '')
             .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/?(p|div|h[1-6]|li)[^>]*>/gi, '\n')
-            .replace(/\n\s+/g, '\n\n')
+            .replace(/<br\s*\/?>/gi, '\n\n')
+            .replace(/<\/?(p|div|h[1-6]|li|ul|ol)[^>]*>/gi, '\n\n')
+            .replace(/\n\s*\n\s*\n/g, '\n\n')
             .trim();
 
-        return content || 'No se pudo extraer el texto del capítulo. Prueba abrir en WebView.';
-    }
+        if (text.length < 100) {
+            return 'No se pudo extraer bien el texto. Abre el capítulo en WebView (botón de ojo).';
+        }
 
+        return text;
+    }
+    
     async searchNovels(searchTerm, pageNo = 1) {
         const url = `${this.site}/search.php?search=${encodeURIComponent(searchTerm)}`;
         const html = await (0, fetch_1.fetchText)(url);
