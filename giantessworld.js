@@ -113,46 +113,50 @@ class GiantessWorldPlugin {
         return novel;
     }
 
-      async parseChapter(chapterPath) {
-        let url = this.resolveUrl(chapterPath);
-        
-        // Forzar vista imprimible (la más limpia)
-        if (!url.includes('action=printable')) {
-            url = url.replace(/viewstory\.php/, 'viewstory.php?action=printable');
-        }
-
+         async parseChapter(chapterPath) {
+        const url = this.resolveUrl(chapterPath);
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
-        // Selectores fuertes para printable view
+        // Selectores más precisos para GiantessWorld
         let storyContainer = 
             $('#story') ||
-            $('div[style*="margin"]') ||
-            $('td[valign="top"]').first() ||
-            $('body');
+            $('.listbox .content') ||
+            $('td[align="left"][valign="top"]') ||
+            $('td[valign="top"]').has('br').first() ||
+            $('div').filter((i, el) => {
+                return $(el).text().length > 300 && 
+                       $(el).find('br').length > 3;
+            }).first();
 
-        // Eliminar basura
-        storyContainer.find('script, style, header, nav, footer, form, select, input, .ad, #menu, a[href*="report"], a[href*="review"]').remove();
+        if (!storyContainer || !storyContainer.length) {
+            // Último intento amplio pero inteligente
+            storyContainer = $('body').clone();
+            // Eliminar elementos no deseados
+            storyContainer.find('header, nav, footer, .menu, #menu, form, select, input, script, style, iframe, .ad, .sidebar').remove();
+        }
+
+        // Limpieza muy fuerte
+        storyContainer.find('script, style, iframe, noscript, select, form, .label, #ad, header, nav, footer').remove();
 
         let text = storyContainer.html() || storyContainer.text() || '';
 
-        // Limpieza agresiva
         text = text
-            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help|Penname:|Password:|Remember Me|Disclaimer:|Vote on|Categories:|Characters:|Warnings:|Challenges:|Series:/gi, '')
+            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help/gi, '')
+            .replace(/Penname:|Password:|Remember Me|Disclaimer:/gi, '')
             .replace(/<script.*?<\/script>/gis, '')
             .replace(/<style.*?<\/style>/gis, '')
             .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
             .replace(/<br\s*\/?>/gi, '\n\n')
-            .replace(/<\/?(p|div|h[1-6]|li|ul|ol|table|tr|td)[^>]*>/gi, '\n\n')
+            .replace(/<\/?(p|div|h[1-6]|li|ul|ol)[^>]*>/gi, '\n\n')
             .replace(/\n\s*\n\s*\n/g, '\n\n')
             .trim();
 
-        if (text.length > 300) {
-            return text;
+        if (text.length < 100) {
+            return 'No se pudo extraer bien el texto. Abre el capítulo en WebView (botón de ojo).';
         }
 
-        // Último fallback
-        return 'No se pudo extraer el texto correctamente.\n\nPrueba abrir el capítulo con el botón de WebView (icono de ojo).';
+        return text;
     }
 
    async searchNovels(searchTerm, pageNo = 1) {
