@@ -9,7 +9,7 @@ class GiantessWorldPlugin {
         this.name = 'GiantessWorld';
         this.icon = 'https://giantessworld.net/favicon.ico';
         this.site = 'https://giantessworld.net';
-        this.version = '3.4.0';
+        this.version = '3.4.1';
     }
 
     resolveUrl(path) {
