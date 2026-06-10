@@ -36,162 +36,149 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 
-// Se eliminan los require() rotos y se asignan las variables globales de la app
-var clientFetchText = typeof fetchText !== "undefined" ? fetchText : function(url) {
-    return fetch(url).then(function(res) { return res.text(); });
-};
-var clientCheerio = typeof cheerio !== "undefined" ? cheerio : { load: function() { return function() { return []; }; } };
-var clientDefaultCover = "";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.GiantessWorldPlugin = void 0;
+
+// Usamos el cliente fetch inyectado por Tsundoku
+var fetchModule = require("@libs/fetch");
+var defaultCoverModule = require("@libs/defaultCover");
 
 var GiantessWorldPlugin = /** @class */ (function () {
-    function GiantessWorldPlugin() {
-        this.id = 'giantessworld';
-        this.name = 'GiantessWorld';
-        this.site = 'https://giantessworld.net';
-        this.version = '2.0.0';
-        this.icon = 'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/book/default/48px.svg';
+    function GiantessWorldPlugin(config) {
+        this.id = config.id;
+        this.name = config.sourceName;
+        this.site = config.sourceSite;
+        this.version = "2.1.0";
+        this.icon = "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/book/default/48px.svg";
     }
-    
-    GiantessWorldPlugin.prototype.popularNovels = function (pageNo) {
+
+    GiantessWorldPlugin.prototype.popularNovels = function (pageNo, t) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, html, $, novels;
+            var url, html, novels, regex, match;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        url = "".concat(this.site, "/browse.php?type=recent&page=").concat(pageNo);
-                        return [4 /*yield*/, clientFetchText(url)];
+                        url = this.site + "/browse.php?type=recent&page=" + pageNo;
+                        return [4, (0, fetchModule.fetchText)(url)];
                     case 1:
                         html = _a.sent();
-                        $ = clientCheerio.load(html);
                         novels = [];
-                        $('a[href*="viewstory.php?sid="]').each(function (_, el) {
-                            var href = $(el).attr('href');
-                            var title = $(el).text().trim();
-                            if (!href || !title)
-                                return;
-                            var match = href.match(/sid=(\d+)/);
-                            if (!match)
-                                return;
+                        regex = /href="(viewstory\.php\?sid=(\d+))"[^>]*><b>(.*?)<\/b>/g;
+                        while ((match = regex.exec(html)) !== null) {
                             novels.push({
-                                name: title,
-                                path: "/viewstory.php?sid=".concat(match[1]),
-                                cover: clientDefaultCover,
-                            });
-                        });
-                        return [2 /*return*/, novels];
-                }
-            });
-        });
-    };
-    
-    GiantessWorldPlugin.prototype.parseNovel = function (novelPath) {
-        return __awaiter(this, void 0, void 0, function () {
-            var url, html, $, name, novel;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        url = this.site + novelPath;
-                        return [4 /*yield*/, clientFetchText(url)];
-                    case 1:
-                        html = _a.sent();
-                        $ = clientCheerio.load(html);
-                        name = $('#pagetitle a').first().text().trim() ||
-                            $('title').text().split('by')[0].trim() ||
-                            'Unknown Title';
-                        novel = {
-                            path: novelPath,
-                            name: name,
-                            cover: clientDefaultCover,
-                            chapters: [],
-                        };
-                        $('select[name="chapter"] option').each(function (_, el) {
-                            var value = $(el).attr('value');
-                            var text = $(el).text().trim();
-                            var chapterNum = Number(value);
-                            if (!chapterNum)
-                                return;
-                            novel.chapters.push({
-                                name: text || "Chapter ".concat(chapterNum),
-                                path: "".concat(novelPath, "&chapter=").concat(chapterNum),
-                                chapterNumber: chapterNum,
-                                releaseTime: '',
-                            });
-                        });
-                        if (novel.chapters.length === 0) {
-                            novel.chapters.push({
-                                name: 'Chapter 1',
-                                path: "".concat(novelPath, "&chapter=1"),
-                                chapterNumber: 1,
-                                releaseTime: '',
+                                name: match[3].replace(/<[^>]*>/g, "").trim(),
+                                path: "/" + match[1],
+                                cover: defaultCoverModule.defaultCover
                             });
                         }
-                        return [2 /*return*/, novel];
+                        return [2, novels];
                 }
             });
         });
     };
-    
+
+    GiantessWorldPlugin.prototype.parseNovel = function (novelPath) {
+        return __awaiter(this, void 0, void 0, function () {
+            var url, html, novel, regex, match, index;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        url = this.site + novelPath + "&index=1";
+                        return [4, (0, fetchModule.fetchText)(url)];
+                    case 1:
+                        html = _a.sent();
+                        novel = {
+                            path: novelPath,
+                            name: "Story Details",
+                            cover: defaultCoverModule.defaultCover,
+                            summary: "No summary available",
+                            author: "Unknown",
+                            chapters: []
+                        };
+                        regex = /href="(viewchapter\.php\?id=(\d+))"[^>]*>(.*?)<\/a>/g;
+                        index = 1;
+                        while ((match = regex.exec(html)) !== null) {
+                            novel.chapters.push({
+                                name: match[3].trim(),
+                                path: "/" + match[1],
+                                chapterNumber: index++,
+                                releaseTime: ""
+                            });
+                        }
+                        if (novel.chapters.length === 0) {
+                            novel.chapters.push({
+                                name: "Chapter 1",
+                                path: novelPath + "&chapter=1",
+                                chapterNumber: 1,
+                                releaseTime: ""
+                            });
+                        }
+                        return [2, novel];
+                }
+            });
+        });
+    };
+
     GiantessWorldPlugin.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, html, $, story;
+            var url, html, startIdx, endIdx, storyHtml;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         url = this.site + chapterPath;
-                        return [4 /*yield*/, clientFetchText(url)];
+                        return [4, (0, fetchModule.fetchText)(url)];
                     case 1:
                         html = _a.sent();
-                        $ = clientCheerio.load(html);
-                        $('#menu, script, style, .footer').remove();
-                        story = $('#story').html() || '';
-                        return [2 /*return*/, story.trim()];
+                        startIdx = html.indexOf('<td align="left" valign="top">');
+                        if (startIdx !== -1) {
+                            endIdx = html.indexOf('</td>', startIdx);
+                            storyHtml = html.substring(startIdx, endIdx);
+                            return [2, storyHtml.replace(/<script[\s\S]*?<\/script>/gi, "")
+                                                 .replace(/<style[\s\S]*?<\/style>/gi, "")
+                                                 .replace(/<br\s*\/?>/gi, "\n")
+                                                 .replace(/<[^>]+>/g, "").trim()];
+                        }
+                        return [2, "Could not load chapter text."];
                 }
             });
         });
     };
-    
+
     GiantessWorldPlugin.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
-            var url, html, $, novels;
+            var url, html, novels, regex, match;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        url = "".concat(this.site, "/search.php?search=").concat(encodeURIComponent(searchTerm), "&page=").concat(pageNo);
-                        return [4 /*yield*/, clientFetchText(url)];
+                        url = this.site + "/search.php?search=" + encodeURIComponent(searchTerm);
+                        return [4, (0, fetchModule.fetchText)(url)];
                     case 1:
                         html = _a.sent();
-                        $ = clientCheerio.load(html);
                         novels = [];
-                        $('a[href*="viewstory.php?sid="]').each(function (_, el) {
-                            var href = $(el).attr('href');
-                            var title = $(el).text().trim();
-                            if (!href || !title)
-                                return;
-                            var match = href.match(/sid=(\d+)/);
-                            if (!match)
-                                return;
+                        regex = /href="(viewstory\.php\?sid=(\d+))"[^>]*><b>(.*?)<\/b>/g;
+                        while ((match = regex.exec(html)) !== null) {
                             novels.push({
-                                name: title,
-                                path: "/viewstory.php?sid=".concat(match[1]),
-                                cover: clientDefaultCover,
+                                name: match[3].trim(),
+                                path: "/" + match[1],
+                                cover: defaultCoverModule.defaultCover
                             });
-                        });
-                        return [2 /*return*/, novels];
+                        }
+                        return [2, novels];
                 }
             });
         });
     };
-    
-    GiantessWorldPlugin.prototype.resolveUrl = function (path) {
-        return this.site + path;
-    };
+
     return GiantessWorldPlugin;
 }());
 
-// Compatibilidad con exportaciones CommonJS y ES Modules nativas
-if (typeof exports !== "undefined") {
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = new GiantessWorldPlugin();
-} else {
-    window.giantessworld = new GiantessWorldPlugin();
-}
+exports.GiantessWorldPlugin = GiantessWorldPlugin;
+
+// Instanciación oficial calcada al final de tu ejemplo
+var pluginInstance = new GiantessWorldPlugin({
+    id: "giantessworld",
+    sourceSite: "https://giantessworld.net",
+    sourceName: "GiantessWorld"
+});
+
+exports.default = pluginInstance;
