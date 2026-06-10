@@ -9,7 +9,7 @@ class GiantessWorldPlugin {
         this.name = 'GiantessWorld';
         this.icon = 'https://giantessworld.net/favicon.ico';
         this.site = 'https://giantessworld.net';
-        this.version = '3.1.0';
+        this.version = '3.2.0';
     }
 
     resolveUrl(path) {
@@ -27,7 +27,7 @@ class GiantessWorldPlugin {
             if (!href || !name) return;
             if (name.toLowerCase().includes('reviews') || name.toLowerCase().includes('table of contents')) return;
 
-            let cleanPath = href.replace(/https?:\/\/giantessworld\.net/, '').replace(/^\/+/, '');
+            let cleanPath = href.replace(/https?:\/\/giantessworld\.net\/?/, '');
             if (cleanPath.includes('&')) cleanPath = cleanPath.split('&')[0];
 
             if (seen.has(cleanPath)) return;
@@ -58,9 +58,19 @@ class GiantessWorldPlugin {
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
-        const title = $('h1').first().text().trim() || $('.story-title a').first().text().trim() || 'Sin título';
+        // Mejores selectores para el título
+        const title = 
+            $('h1').first().text().trim() ||
+            $('.story-title a').first().text().trim() ||
+            $('#pagetitle a').first().text().trim() ||
+            $('strong').first().text().trim() ||
+            'Sin título';
+
         const author = $('a[href*="viewuser.php"]').first().text().trim() || 'Desconocido';
-        const summary = $('td:contains("Summary"), .content, .summary').first().text().trim() || 'Sin resumen';
+
+        const summary = 
+            $('td:contains("Summary"), td:contains("Description"), .content, .summary').first().text().trim() ||
+            'Sin resumen disponible.';
 
         const novel = {
             path: novelPath,
@@ -71,21 +81,21 @@ class GiantessWorldPlugin {
             chapters: []
         };
 
-        // Mejor extracción de capítulos (TOC)
+        // Extracción de capítulos (mejorada)
         $('a[href*="viewchapter.php"], a[href*="viewstory.php?sid="][href*="chapter="]').each((_, el) => {
             const name = $(el).text().trim();
             const href = $(el).attr('href') || '';
             if (name && href && !name.toLowerCase().includes('table of contents')) {
                 novel.chapters.push({
                     name: name,
-                    path: href.replace(/https?:\/\/giantessworld\.net/, ''),
+                    path: href.replace(/https?:\/\/giantessworld\.net\/?/, ''),
                     chapterNumber: novel.chapters.length + 1,
                     releaseTime: ''
                 });
             }
         });
 
-        // Fallback con select si existe
+        // Fallback con select
         if (novel.chapters.length === 0) {
             $('select[name="chapter"] option').each((_, el) => {
                 const value = $(el).attr('value');
@@ -103,37 +113,29 @@ class GiantessWorldPlugin {
         return novel;
     }
 
-        async parseChapter(chapterPath) {
-        const url = this.resolveUrl(chapterPath);
+    async parseChapter(chapterPath) {
+        let url = this.resolveUrl(chapterPath);
+        // Intentar vista imprimible (más limpia)
+        if (!url.includes('action=printable')) {
+            url = url.replace('viewstory.php', 'viewstory.php?action=printable');
+        }
+
         const html = await (0, fetch_1.fetchText)(url);
         const $ = (0, cheerio_1.load)(html);
 
-        // Selectores más precisos para GiantessWorld
         let storyContainer = 
             $('#story') ||
-            $('.listbox .content') ||
+            $('.content') ||
             $('td[align="left"][valign="top"]') ||
             $('td[valign="top"]').has('br').first() ||
-            $('div').filter((i, el) => {
-                return $(el).text().length > 300 && 
-                       $(el).find('br').length > 3;
-            }).first();
+            $('body');
 
-        if (!storyContainer || !storyContainer.length) {
-            // Último intento amplio pero inteligente
-            storyContainer = $('body').clone();
-            // Eliminar elementos no deseados
-            storyContainer.find('header, nav, footer, .menu, #menu, form, select, input, script, style, iframe, .ad, .sidebar').remove();
-        }
-
-        // Limpieza muy fuerte
-        storyContainer.find('script, style, iframe, noscript, select, form, .label, #ad, header, nav, footer').remove();
+        storyContainer.find('script, style, header, nav, footer, form, select, input, .ad, #menu').remove();
 
         let text = storyContainer.html() || storyContainer.text() || '';
 
         text = text
-            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help/gi, '')
-            .replace(/Penname:|Password:|Remember Me|Disclaimer:/gi, '')
+            .replace(/Home|Register|Login|Featured Stories|Most Recent|Browse|Old Archive|Writing Tools|Images|Search|Help|Penname:|Password:|Remember Me|Disclaimer:/gi, '')
             .replace(/<script.*?<\/script>/gis, '')
             .replace(/<style.*?<\/style>/gis, '')
             .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
@@ -142,13 +144,9 @@ class GiantessWorldPlugin {
             .replace(/\n\s*\n\s*\n/g, '\n\n')
             .trim();
 
-        if (text.length < 100) {
-            return 'No se pudo extraer bien el texto. Abre el capítulo en WebView (botón de ojo).';
-        }
-
-        return text;
+        return text.length > 200 ? text : 'No se pudo cargar el texto correctamente. Prueba WebView.';
     }
-    
+
     async searchNovels(searchTerm, pageNo = 1) {
         const url = `${this.site}/search.php?search=${encodeURIComponent(searchTerm)}`;
         const html = await (0, fetch_1.fetchText)(url);
