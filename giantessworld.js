@@ -149,10 +149,22 @@ class GiantessWorldPlugin {
         return text;
     }
     
-    async searchNovels(searchTerm, pageNo = 1) {
-        // En eFiction, el script "search.php" procesa búsquedas si se le indica la acción de envío y el campo correcto "searchtext"
-        const url = `${this.site}/search.php?action=search&searchtext=${encodeURIComponent(searchTerm)}&searchtype=titles&page=${pageNo}`;
-        const html = await (0, fetch_1.fetchText)(url);
+  async searchNovels(searchTerm, pageNo = 1) {
+        const url = `${this.site}/search.php`;
+        
+        // Creamos la cadena de datos exactamente como la enviaría un navegador antiguo (x-www-form-urlencoded)
+        const bodyData = `searchtext=${encodeURIComponent(searchTerm)}&searchtype=titles&submit=Search`;
+
+        // Usamos fetchText pasándole los headers manuales para que el servidor no rechace la petición
+        const html = await (0, fetch_1.fetchText)(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': `${this.site}/search.php`
+            },
+            body: bodyData
+        });
+
         const $ = (0, cheerio_1.load)(html);
         return this.extractNovels($);
     }
