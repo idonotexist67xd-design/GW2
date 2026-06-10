@@ -49,7 +49,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
         this.name = 'GiantessWorld';
         this.icon = '';
         this.site = 'https://giantessworld.net';
-        this.version = '2.1.5'; // Forzamos nueva versión para limpiar cachés
+        this.version = '2.2.0'; // Gran salto de versión para forzar actualización total
     }
 
     GiantessWorldPlugin.prototype.resolveUrl = function (path) {
@@ -63,7 +63,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
     GiantessWorldPlugin.prototype.extractNovels = function ($) {
         var novels = [];
         var seen = new Set();
-
+        
         $('a[href*="viewstory.php?sid="]').each(function (_, el) {
             var name = $(el).text().trim();
             var href = $(el).attr('href') || '';
@@ -71,11 +71,14 @@ var GiantessWorldPlugin = /** @class */ (function () {
             if (!href || !name) return;
             if (name.toLowerCase().includes('reviews') || name.toLowerCase().includes('table of contents')) return;
             
-            var cleanPath = href.replace('https://giantessworld.net', '')
-                                .replace('http://giantessworld.net', '');
-            
+            var cleanPath = href.replace('https://giantessworld.net', '').replace('http://giantessworld.net', '');
             if (cleanPath.startsWith('/')) {
                 cleanPath = cleanPath.substring(1);
+            }
+            
+            // Eliminar parámetros sobrantes de los listados para guardar solo el ID base de la historia
+            if (cleanPath.includes('&')) {
+                cleanPath = cleanPath.split('&')[0];
             }
 
             if (seen.has(cleanPath)) return;
@@ -91,7 +94,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
     };
 
     // =========================
-    // 📚 RECIENTES
+    // 📚 POPULAR (RECIENTES)
     // =========================
     GiantessWorldPlugin.prototype.popularNovels = function (pageNo) {
         return __awaiter(this, void 0, void 0, function () {
@@ -111,7 +114,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
     };
 
     // =========================
-    // 📖 DETALLES E ÍNDICE DE CAPÍTULOS
+    // 📖 DETALLES DE LA NOVELA E ÍNDICE
     // =========================
     GiantessWorldPlugin.prototype.parseNovel = function (novelPath) {
         return __awaiter(this, void 0, void 0, function () {
@@ -127,7 +130,6 @@ var GiantessWorldPlugin = /** @class */ (function () {
                         
                         title = $('.story-title a').first().text().trim() || 
                                 $('#pagetitle a').first().text().trim() || 
-                                $('span.story-title a').first().text().trim() ||
                                 'Unknown Title';
                                 
                         author = $('a[href*="viewuser.php"]').first().text().trim() || 'Unknown Author';
@@ -146,7 +148,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
                         options = $('select[name="chapter"] option');
                         
                         if (options.length > 0) {
-                            // Método A: Desplegable clásico de eFiction
+                            // Si la novela tiene varios capítulos listados en el menú desplegable
                             options.each(function (_, el) {
                                 var number = Number($(el).attr('value'));
                                 var name = $(el).text().trim();
@@ -155,38 +157,19 @@ var GiantessWorldPlugin = /** @class */ (function () {
                                 chapters.push({
                                     name: name,
                                     chapterNumber: number,
-                                    path: "".concat(novelPath, "&chapter=").concat(number),
+                                    // Construimos la URL exacta como la que me pasaste: viewstory.php?sid=13257&textsize=0&chapter=2
+                                    path: "".concat(novelPath, "&textsize=0&chapter=").concat(number),
                                     releaseTime: '',
                                 });
                             });
                         } else {
-                            // Método B: Intentar capturar enlaces explícitos a capítulos en el cuerpo (ej: viewstory.php?sid=XXXX&index=1)
-                            var links = $('a[href*="viewstory.php?sid="][href*="index="]');
-                            if (links.length > 0) {
-                                links.each(function (idx, el) {
-                                    var href = $(el).attr('href') || '';
-                                    var name = $(el).text().trim() || "Chapter " + (idx + 1);
-                                    
-                                    var cleanChPath = href.replace('https://giantessworld.net', '').replace('http://giantessworld.net', '');
-                                    if (cleanChPath.startsWith('/')) cleanChPath = cleanChPath.substring(1);
-
-                                    chapters.push({
-                                        name: name,
-                                        chapterNumber: idx + 1,
-                                        path: cleanChPath,
-                                        releaseTime: '',
-                                    });
-                                });
-                            } else {
-                                // Método C: One-shot (un solo capítulo)
-                                var singleChapterPath = novelPath.replace('viewstory.php', 'viewchapter.php');
-                                chapters.push({
-                                    name: 'Chapter 1',
-                                    chapterNumber: 1,
-                                    path: singleChapterPath,
-                                    releaseTime: '',
-                                });
-                            }
+                            // Si es un One-Shot (relato independiente sin selector de capítulos)
+                            chapters.push({
+                                name: 'Chapter 1',
+                                chapterNumber: 1,
+                                path: novelPath + "&textsize=0&chapter=1",
+                                releaseTime: '',
+                            });
                         }
 
                         novel.chapters = chapters;
@@ -197,7 +180,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
     };
 
     // =========================
-    // 📄 TEXTO DEL CAPÍTULO
+    // 📄 CONTENIDO DEL CAPÍTULO (MANTENIENDO VIEWSTORY.PHP)
     // =========================
     GiantessWorldPlugin.prototype.parseChapter = function (chapterPath) {
         return __awaiter(this, void 0, void 0, function () {
@@ -205,33 +188,36 @@ var GiantessWorldPlugin = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        // Convertir la ruta a viewchapter si viene de un formato directo
-                        if (chapterPath.includes('viewstory.php') && (chapterPath.includes('chapter=') || chapterPath.includes('index='))) {
-                            chapterPath = chapterPath.replace('viewstory.php', 'viewchapter.php').replace('index=', 'chapter=');
-                        } else if (chapterPath.includes('viewstory.php')) {
-                            chapterPath = chapterPath.replace('viewstory.php', 'viewchapter.php');
-                        }
-                        
                         url = this.resolveUrl(chapterPath);
                         return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
                     case 1:
                         html = _a.sent();
                         $ = (0, cheerio_1.load)(html);
                         
+                        // Buscamos el contenedor exacto del texto de la historia
                         storyContainer = $('#story');
-                        if (!storyContainer.length) storyContainer = $('.listbox .content');
-                        if (!storyContainer.length) storyContainer = $('td[align="left"][valign="top"]').has('br');
+                        
+                        if (!storyContainer.length) {
+                            storyContainer = $('.listbox .content');
+                        }
+                        
+                        if (!storyContainer.length) {
+                            storyContainer = $('td[align="left"][valign="top"]').has('br');
+                        }
+
                         if (!storyContainer.length) {
                             storyContainer = $('div').filter(function(_, el) {
-                                return $(el).text().length > 800 && $(el).find('br').length > 5;
+                                return $(el).text().length > 500 && $(el).find('br').length > 5;
                             }).first();
                         }
 
                         if (!storyContainer.length) {
-                            return [2 /*return*/, 'Could not parse chapter text. Please open WebView to view this content.'];
+                            return [2 /*return*/, 'Could not parse chapter text automatically. Please use WebView.'];
                         }
 
+                        // Limpieza de código sobrante para que en el lector solo quede el texto limpio de la historia
                         storyContainer.find('script, style, iframe, noscript, select, form, .label, #ad').remove();
+                        
                         chapterHtml = storyContainer.html() || storyContainer.text() || '';
                         return [2 /*return*/, chapterHtml.trim()];
                 }
@@ -240,32 +226,17 @@ var GiantessWorldPlugin = /** @class */ (function () {
     };
 
     // =========================
-    // 🔍 BUSCADOR VÍA POST REAL
+    // 🔍 BUSCADOR DIRECTO VÍA URL
     // =========================
     GiantessWorldPlugin.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
-            var searchUrl, formData, html, $;
+            var url, html, $;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        searchUrl = "".concat(this.site, "/search.php");
-                        
-                        // Generamos los datos del formulario exactos que espera el script eFiction antiguo
-                        formData = new FormData();
-                        formData.append('searchtext', searchTerm);
-                        formData.append('searchtype', 'titles'); // Busca en títulos obligatorias
-                        formData.append('submit', 'Search');
-                        
-                        // Si Tsundoku maneja páginas en la búsqueda, se concatena
-                        if (pageNo > 1) {
-                            searchUrl += "?page=" + pageNo;
-                        }
-
-                        // Hacemos un fetch simulando el envío del formulario
-                        return [4 /*yield*/, fetch(searchUrl, {
-                            method: 'POST',
-                            body: formData
-                        }).then(function (res) { return res.text(); })];
+                        // Endpoint nativo alternativo para forzar al script del servidor antiguo a procesar la búsqueda por GET
+                        url = "".concat(this.site, "/search.php?action=search&search_text=").concat(encodeURIComponent(searchTerm), "&searchtype=titles&page=").concat(pageNo);
+                        return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
                     case 1:
                         html = _a.sent();
                         $ = (0, cheerio_1.load)(html);
