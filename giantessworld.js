@@ -49,40 +49,44 @@ var GiantessWorldPlugin = /** @class */ (function () {
         this.name = 'GiantessWorld';
         this.icon = '';
         this.site = 'https://giantessworld.net';
-        this.version = '2.1.2'; // Nueva subversión para limpiar la caché de la app
+        this.version = '2.1.3'; // Escalamos versión para reventar cachés locales
     }
 
+    // Resolutor de URLs súper estricto contra barras duplicadas o malformadas
     GiantessWorldPlugin.prototype.resolveUrl = function (path) {
-        if (!path.startsWith('/')) {
-            path = '/' + path;
+        var cleanPath = path;
+        if (cleanPath.startsWith('/')) {
+            cleanPath = cleanPath.substring(1);
         }
-        return this.site + path;
+        return this.site + '/' + cleanPath;
     };
 
-    // Nivel común de extracción para listados y búsquedas
     GiantessWorldPlugin.prototype.extractNovels = function ($) {
         var novels = [];
         var seen = new Set();
-        
-        // Mapeamos los enlaces directos a las historias
+        var _this = this;
+
         $('a[href*="viewstory.php?sid="]').each(function (_, el) {
             var name = $(el).text().trim();
             var href = $(el).attr('href') || '';
             
             if (!href || !name) return;
-            // Evitamos capturar enlaces repetidos a comentarios o índices
             if (name.toLowerCase().includes('reviews') || name.toLowerCase().includes('table of contents')) return;
             
-            // Limpiamos la URL para dejar solo el path relativo
-            var cleanPath = href.replace('https://giantessworld.net', '').replace('http://giantessworld.net', '');
-            if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+            // Limpieza radical de la URL para que Tsundoku guarde rutas relativas impecables
+            var cleanPath = href.replace('https://giantessworld.net', '')
+                                .replace('http://giantessworld.net', '');
+            
+            if (cleanPath.startsWith('/')) {
+                cleanPath = cleanPath.substring(1);
+            }
 
             if (seen.has(cleanPath)) return;
             seen.add(cleanPath);
 
             novels.push({
                 name: name,
-                path: cleanPath,
+                path: cleanPath, // Ej: "viewstory.php?sid=13257"
                 cover: defaultCover_1.defaultCover,
             });
         });
@@ -124,10 +128,9 @@ var GiantessWorldPlugin = /** @class */ (function () {
                         html = _a.sent();
                         $ = (0, cheerio_1.load)(html);
                         
-                        // Selectores basados fielmente en la estructura clásica de eFiction
                         title = $('.story-title a').first().text().trim() || 
                                 $('#pagetitle a').first().text().trim() || 
-                                $('span.title').first().text().trim() || 
+                                $('span.story-title a').first().text().trim() ||
                                 'Unknown Title';
                                 
                         author = $('a[href*="viewuser.php"]').first().text().trim() || 'Unknown Author';
@@ -159,7 +162,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
                                 });
                             });
                         } else {
-                            // Fallback dinámico: forzar carga de viewchapter.php para leer relatos individuales de un capítulo
+                            // Fallback crucial: si es un One-Shot, mutamos la ruta para que apunte directamente a la vista del lector
                             var singleChapterPath = novelPath.replace('viewstory.php', 'viewchapter.php');
                             chapters.push({
                                 name: 'Chapter 1',
@@ -185,7 +188,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        if (chapterPath.includes('viewstory.php')) {
+                        if (chapterPath.includes('viewstory.php') && !chapterPath.includes('chapter=')) {
                             chapterPath = chapterPath.replace('viewstory.php', 'viewchapter.php');
                         }
                         url = this.resolveUrl(chapterPath);
@@ -194,7 +197,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
                         html = _a.sent();
                         $ = (0, cheerio_1.load)(html);
                         
-                        // Selector del div o contenedor del relato
+                        // Capturador elástico de texto para eFiction viejo
                         storyContainer = $('#story');
                         
                         if (!storyContainer.length) {
@@ -206,10 +209,16 @@ var GiantessWorldPlugin = /** @class */ (function () {
                         }
 
                         if (!storyContainer.length) {
+                            // Tercera red de seguridad por si el layout varía entre skins
+                            storyContainer = $('div').filter(function(_, el) {
+                                return $(el).text().length > 1000 && $(el).find('br').length > 10;
+                            }).first();
+                        }
+
+                        if (!storyContainer.length) {
                             return [2 /*return*/, 'Could not parse chapter text automatically. Please use WebView to read this chapter.'];
                         }
 
-                        // Eliminamos la interfaz inyectada dentro del contenido para evitar textos basura
                         storyContainer.find('script, style, iframe, noscript, select, form, .label').remove();
                         
                         chapterHtml = storyContainer.html() || storyContainer.text() || '';
@@ -220,7 +229,7 @@ var GiantessWorldPlugin = /** @class */ (function () {
     };
 
     // =========================
-    // 🔍 SEARCH (BUSCADOR CORREGIDO)
+    // 🔍 SEARCH (SISTEMA CORREGIDO)
     // =========================
     GiantessWorldPlugin.prototype.searchNovels = function (searchTerm, pageNo) {
         return __awaiter(this, void 0, void 0, function () {
@@ -228,8 +237,8 @@ var GiantessWorldPlugin = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        // Usamos el endpoint global de eFiction para búsquedas por palabras clave
-                        url = "".concat(this.site, "/search.php?action=search&search_text=").concat(encodeURIComponent(searchTerm), "&page=").concat(pageNo);
+                        // Usamos la URL exacta de títulos cruzada que el HTML viejo mapea internamente
+                        url = "".concat(this.site, "/browse.php?type=titles&searchterm=").concat(encodeURIComponent(searchTerm), "&page=").concat(pageNo);
                         return [4 /*yield*/, (0, fetch_1.fetchText)(url)];
                     case 1:
                         html = _a.sent();
