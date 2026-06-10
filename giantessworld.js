@@ -1,85 +1,90 @@
-(function() {
-  "use strict";
-
-  const plugin = {
+const plugin = {
     id: "giantessworld",
     name: "GiantessWorld",
-    icon: "https://giantessworld.net/favicon.ico",
     site: "https://giantessworld.net",
-    version: "1.0.0",
+    version: "1.0.1",
     lang: "English",
+    icon: "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/book/default/48px.svg",
 
-    async popularNovels(page) {
-      const res = await fetch(`${this.site}/browse.php?type=recent&page=${page}`);
-      const text = await res.text();
-      const novels = [];
-      const matches = text.matchAll(/href="(viewstory\.php\?sid=\d+)"[^>]*><b>(.*?)<\/b>/g);
-      for (const match of matches) {
-        novels.push({
-          name: match[2].replace(/<[^>]*>/g, "").trim(),
-          path: match[1],
-          cover: "https://giantessworld.net/images/no_cover.png"
-        });
-      }
-      return novels;
+    popularNovels: function(page) {
+        return fetch(this.site + "/browse.php?type=recent&page=" + page)
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                var novels = [];
+                var regex = /href="(viewstory\.php\?sid=(\d+))"[^>]*><b>(.*?)<\/b>/g;
+                var match;
+                while ((match = regex.exec(text)) !== null) {
+                    novels.push({
+                        name: match[3].replace(/<[^>]*>/g, "").trim(),
+                        path: match[1],
+                        cover: "https://giantessworld.net/images/no_cover.png"
+                    });
+                }
+                return novels;
+            });
     },
 
-    async parseNovel(novelPath) {
-      const res = await fetch(`${this.site}/${novelPath}&index=1`);
-      const text = await res.text();
-      const novel = {
-        path: novelPath,
-        name: "Story",
-        cover: "https://giantessworld.net/images/no_cover.png",
-        summary: "No summary available",
-        author: "Unknown",
-        chapters: []
-      };
+    parseNovel: function(novelPath) {
+        return fetch(this.site + "/" + novelPath + "&index=1")
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                var novel = {
+                    path: novelPath,
+                    name: "Story",
+                    cover: "https://giantessworld.net/images/no_cover.png",
+                    summary: "No summary available",
+                    author: "Unknown",
+                    chapters: []
+                };
 
-      const chMatches = text.matchAll(/href="(viewchapter\.php\?id=\d+)"[^>]*>(.*?)<\/a>/g);
-      let index = 1;
-      for (const match of chMatches) {
-        novel.chapters.push({
-          name: match[2].trim(),
-          path: match[1],
-          chapterNumber: index++
-        });
-      }
-      return novel;
+                var regex = /href="(viewchapter\.php\?id=\d+))"[^>]*>(.*?)<\/a>/g;
+                var match;
+                var index = 1;
+                while ((match = regex.exec(text)) !== null) {
+                    novel.chapters.push({
+                        name: match[3].trim(),
+                        path: match[1],
+                        chapterNumber: index++
+                    });
+                }
+                return novel;
+            });
     },
 
-    async parseChapter(chapterPath) {
-      const res = await fetch(`${this.site}/${chapterPath}`);
-      const html = await res.text();
-      const match = html.match(/<td align="left" valign="top">([\s\S]*?)<\/td>/);
-      if (match) {
-        return match[1].replace(/<script[\s\S]*?<\/script>/gi, "")
-                       .replace(/<style[\s\S]*?<\/style>/gi, "")
-                       .replace(/<br\s*\/?>/gi, "\n")
-                       .replace(/<[^>]+>/g, "");
-      }
-      return "Could not load chapter content.";
+    parseChapter: function(chapterPath) {
+        return fetch(this.site + "/" + chapterPath)
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                var startIdx = text.indexOf('<td align="left" valign="top">');
+                if (startIdx !== -1) {
+                    var endIdx = text.indexOf('</td>', startIdx);
+                    var html = text.substring(startIdx, endIdx);
+                    return html.replace(/<script[\s\S]*?<\/script>/gi, "")
+                               .replace(/<style[\s\S]*?<\/style>/gi, "")
+                               .replace(/<br\s*\/?>/gi, "\n")
+                               .replace(/<[^>]+>/g, "").trim();
+                }
+                return "Could not load chapter content.";
+            });
     },
 
-    async searchNovels(term) {
-      const res = await fetch(`${this.site}/search.php?search=${encodeURIComponent(term)}`);
-      const text = await res.text();
-      const novels = [];
-      const matches = text.matchAll(/href="(viewstory\.php\?sid=\d+)"[^>]*><b>(.*?)<\/b>/g);
-      for (const match of matches) {
-        novels.push({
-          name: match[2].trim(),
-          path: match[1],
-          cover: "https://giantessworld.net/images/no_cover.png"
-        });
-      }
-      return novels;
+    searchNovels: function(term) {
+        return fetch(this.site + "/search.php?search=" + encodeURIComponent(term))
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                var novels = [];
+                var regex = /href="(viewstory\.php\?sid=(\d+))"[^>]*><b>(.*?)<\/b>/g;
+                var match;
+                while ((match = regex.exec(text)) !== null) {
+                    novels.push({
+                        name: match[3].trim(),
+                        path: match[1],
+                        cover: "https://giantessworld.net/images/no_cover.png"
+                    });
+                }
+                return novels;
+            });
     }
-  };
+};
 
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = plugin;
-  } else {
-    return plugin;
-  }
-})();
+export default plugin;
