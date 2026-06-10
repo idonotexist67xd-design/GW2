@@ -1,0 +1,39 @@
+{
+  "id": "giantessworld",
+  "name": "GiantessWorld",
+  "site": "https://giantessworld.net",
+  "lang": "English",
+  "version": "1.0.0",
+  "type": "custom",
+  "fixtures": {
+    "popularNovels": {
+      "url": "https://giantessworld.net/browse.php?type=recent&page={page}",
+      "selector": "a[href^='viewstory.php?sid=']",
+      "name": "text",
+      "path": "attr(href)",
+      "cover": "const(https://giantessworld.net/images/no_cover.png)"
+    },
+    "parseNovel": {
+      "url": "https://giantessworld.net/{path}&index=1",
+      "name": "h1:first",
+      "author": "a[href^='viewuser.php']:first",
+      "summary": "td:contains('Summary')",
+      "chapters": {
+        "selector": "a[href^='viewchapter.php']",
+        "name": "text",
+        "path": "attr(href)"
+      }
+    },
+    "parseChapter": {
+      "url": "https://giantessworld.net/{path}",
+      "selector": "td[align='left']",
+      "html": true
+    },
+    "searchNovels": {
+      "url": "https://giantessworld.net/search.php?search={search}",
+      "selector": "a[href^='viewstory.php?sid=']",
+      "name": "text",
+      "path": "attr(href)"
+    }
+  }
+}
